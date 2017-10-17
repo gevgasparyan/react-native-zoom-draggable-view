@@ -1,199 +1,302 @@
 //
 //  RNZoomDraggableView.swift
+//  RNZoomDraggableView
+//
+//  Created by Gevorg Gasparyan on 10/17/17.
+//  Copyright © 2017 Gevorg Gasparyan. All rights reserved.
 //
 
 import UIKit
 
 class RNZoomDraggableView: RCTView, UIGestureRecognizerDelegate {
-    
-    var dragStartPositionRelativeToCenter : CGPoint?
-    var contentView: UIView!
-    
-    var maximumZoomScale: CGFloat?
-    var minimumZoomScale: CGFloat?
-    var zoomScale: CGFloat = 1
-    
-    var onViewTouchStart: RCTBubblingEventBlock?
-    var onViewTouchEnd: RCTBubblingEventBlock?
-    var onViewLongPress: RCTBubblingEventBlock?
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        self.clipsToBounds = true
+  
+  var dragStartPositionRelativeToCenter : CGPoint?
+  var contentView: UIView!
+  
+  var maximumZoomScale: CGFloat?
+  var minimumZoomScale: CGFloat?
+  var zoomScale: CGFloat = 1
+  var requiresMinScale: Bool = true
+  var needToUpdateContent: Bool = true
+  var interactionEnabled: Bool = true
+  
+  var onViewTap: RCTBubblingEventBlock?
+  var onViewTouchStart: RCTBubblingEventBlock?
+  var onViewTouchEnd: RCTBubblingEventBlock?
+  var onViewLongPress: RCTBubblingEventBlock?
+  
+  var tapRecognizer: UITapGestureRecognizer!
+  var panRecognizer: UIPanGestureRecognizer!
+  var pinchRecognizer: UIPinchGestureRecognizer!
+  var longPressRecognizer: UILongPressGestureRecognizer!
+  
+  var longPressEnabled: Bool = true
+  
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    self.clipsToBounds = true
+  }
+  
+  required init?(coder aDecoder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+  
+  var params: NSDictionary? {
+    set {
+      guard let _params = newValue else { return }
+      var updateContent = false
+      if let _interactionEnabled = _params.object(forKey: "userInteractionEnabled") as? Bool {
+        if self.interactionEnabled !=  _interactionEnabled {
+          self.interactionEnabled = _interactionEnabled
+          self.isUserInteractionEnabled = _interactionEnabled
+          if contentView != nil {
+            contentView.isUserInteractionEnabled = _interactionEnabled
+          }
+        }
+      }
+      if let _longPressEnabled = _params.object(forKey: "longPressEnabled") as? Bool {
+        longPressEnabled = _longPressEnabled
+        if longPressRecognizer != nil {
+          longPressRecognizer.isEnabled = _longPressEnabled
+        }
+      }
+      if let minZoomScale = _params.object(forKey: "minimumZoomScale") as? CGFloat {
+        if self.minimumZoomScale != nil && self.minimumZoomScale != minZoomScale {
+          self.minimumZoomScale = minZoomScale
+          updateContent = true
+        }
+        self.minimumZoomScale = minZoomScale
+      }
+      if let maxZoomScale = _params.object(forKey: "maximumZoomScale") as? CGFloat {
+        if self.maximumZoomScale != nil && self.maximumZoomScale != maxZoomScale {
+          self.maximumZoomScale = maxZoomScale
+          updateContent = true
+        }
+        self.maximumZoomScale = maxZoomScale
+      }
+      if let zoomScale = _params.object(forKey: "zoomScale") as? CGFloat {
+        self.zoomScale = zoomScale
+      }
+      if let reqMinScale = _params.object(forKey: "requiresMinScale") as? Bool {
+        if self.requiresMinScale != reqMinScale {
+          self.requiresMinScale = reqMinScale
+          updateContent = true
+        }
+        self.requiresMinScale = reqMinScale
+      }
+      if updateContent {
+        self.updateContent()
+      }
     }
-    
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    get {
+      return nil
     }
-    
-    var params: NSDictionary? {
-        set {
-            guard let _params = newValue else { return }
-            
-            if let minZoomScale = _params.object(forKey: "minimumZoomScale") as? CGFloat {
-                self.minimumZoomScale = minZoomScale
-            }
-            if let maxZoomScale = _params.object(forKey: "maximumZoomScale") as? CGFloat {
-                self.maximumZoomScale = maxZoomScale
-            }
-            if let zoomScale = _params.object(forKey: "zoomScale") as? CGFloat {
-                self.zoomScale = zoomScale
-            }
-        }
-        get {
-            return nil
-        }
+  }
+  
+  override var bounds: CGRect {
+    willSet {
+      needToUpdateContent = true
     }
-    
-    override func insertReactSubview(_ subview: UIView!, at atIndex: Int) {
-        super.insertSubview(subview, at: atIndex)
-        self.contentView = subview
-        initialSetup()
+  }
+  
+  override func insertReactSubview(_ subview: UIView!, at atIndex: Int) {
+    super.insertSubview(subview, at: atIndex)
+    self.contentView = subview
+    initialSetup()
+  }
+  
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if needToUpdateContent {
+      needToUpdateContent = false
+      updateContent(animated: false)
     }
+  }
+  
+  func initialSetup() {
+    self.isUserInteractionEnabled = interactionEnabled
+    contentView.isUserInteractionEnabled = interactionEnabled
     
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        updateContent(animated: false)
-    }
+    panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(handlePan(gesture:)))
+    panRecognizer.delegate = self
+    contentView.addGestureRecognizer(panRecognizer)
     
-    func initialSetup() {
-        self.isUserInteractionEnabled = true
-        contentView.isUserInteractionEnabled = true
-        
-        let panRecognizer = UIPanGestureRecognizer(target: self, action: #selector(handlePan(gesture:)))
-        panRecognizer.delegate = self
-        self.contentView.addGestureRecognizer(panRecognizer)
-        
-        let pinchRecognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(gesture:)))
-        pinchRecognizer.delegate = self
-        self.contentView.addGestureRecognizer(pinchRecognizer)
-        
-        let longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(gesture:)))
-        longPressRecognizer.delegate = self
-        longPressRecognizer.delaysTouchesBegan = true
-        self.contentView.addGestureRecognizer(longPressRecognizer)
-        
-        if self.zoomScale != contentView.transform.a {
-            contentView.transform = contentView.transform.scaledBy(x: self.zoomScale, y: self.zoomScale)
-        }
-    }
+    pinchRecognizer = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(gesture:)))
+    pinchRecognizer.delegate = self
+    contentView.addGestureRecognizer(pinchRecognizer)
     
-    func sendOnTouchStartEvent(numberOfTouches: Int) {
-        if self.onViewTouchStart != nil {
-            let event = ["numberOfTouches": numberOfTouches]
-            self.onViewTouchStart!(event);
-        }
-    }
+    longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(gesture:)))
+    longPressRecognizer.delegate = self
+    longPressRecognizer.delaysTouchesBegan = true
+    longPressRecognizer.isEnabled = longPressEnabled
+    contentView.addGestureRecognizer(longPressRecognizer)
     
-    func sendOnTouchEndEvent(numberOfTouches: Int) {
-        if self.onViewTouchEnd != nil {
-            let event = ["numberOfTouches": numberOfTouches]
-            self.onViewTouchEnd!(event)
-        }
-    }
+    tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleTap(gesture:)))
+    tapRecognizer.delegate = self
+    contentView.addGestureRecognizer(tapRecognizer)
     
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        self.sendOnTouchStartEvent(numberOfTouches: touches.count)
+    if self.zoomScale != contentView.transform.a {
+      contentView.transform = contentView.transform.scaledBy(x: self.zoomScale, y: self.zoomScale)
     }
-    
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
+    if minimumZoomScale == nil {
+      let scaleWidth = frame.size.width / contentView.frame.size.width
+      let scaleHeight = frame.size.height / contentView.frame.size.height
+      self.minimumZoomScale = min(scaleWidth, scaleHeight)
     }
-    
-    func updateContent(animated: Bool = true) {
-        var centerX = contentView.center.x
-        var centerY = contentView.center.y
-        if contentView.frame.origin.x > 0 {
-            centerX = contentView.frame.size.width / 2
-        }
-        if contentView.frame.origin.x < self.frame.size.width - contentView.frame.size.width {
-            if contentView.transform.a > 1 {
-                centerX = self.frame.size.width - contentView.frame.size.width / 2
-            } else {
-                centerX = -(contentView.frame.size.width - self.frame.size.width - contentView.frame.size.width / 2)
-            }
-        }
-        if contentView.frame.origin.y > 0 {
-            centerY = contentView.frame.size.height / 2
-        }
-        if contentView.frame.origin.y < self.frame.size.height - contentView.frame.size.height {
-            if contentView.transform.a > 1 {
-                centerY = self.frame.size.height - contentView.frame.size.height / 2
-            } else {
-                centerY = -(contentView.frame.size.height - self.frame.size.height - contentView.frame.size.height / 2)
-            }
-        }
-        var scaleX = contentView.transform.a
-        var scaleY = contentView.transform.a
-        
-        if contentView.frame.size.width < self.frame.size.width {
-            scaleX = self.frame.size.width / contentView.frame.size.width
-            centerX = self.frame.size.width / 2
-        }
-        if contentView.frame.size.height < self.frame.size.height {
-            scaleY = self.frame.size.height / contentView.frame.size.height
-            centerY = self.frame.size.height / 2
-        }
-        
-        if scaleX != contentView.transform.a && scaleY != contentView.transform.a {
-            let scale = min(scaleX, scaleY)
-            contentView.transform = contentView.transform.scaledBy(x: scale, y: scale)
-        }
-        if centerX != contentView.center.x || centerY != contentView.center.y {
-            if animated {
-                UIView.animate(withDuration: 0.1) {
-                    self.contentView.center = CGPoint(x: centerX, y: centerY)
-                }
-            } else {
-                self.contentView.center = CGPoint(x: centerX, y: centerY)
-            }
-        }
+  }
+  
+  func sendOnTapEvent() {
+    if self.onViewTap != nil {
+      let event: [String: Any] = [:]
+      self.onViewTap!(event);
     }
-    
-    @objc func handlePan(gesture: UIPanGestureRecognizer) {
-        if gesture.state == UIGestureRecognizerState.began {
-            let locationInView = gesture.location(in: self)
-            dragStartPositionRelativeToCenter = CGPoint(x: locationInView.x - contentView.center.x, y: locationInView.y - contentView.center.y)
-            return
-        }
-        
-        if gesture.state == UIGestureRecognizerState.ended {
-            updateContent()
-            dragStartPositionRelativeToCenter = nil
-            self.sendOnTouchEndEvent(numberOfTouches: 1)
-            return
-        }
-        
-        let locationInView = gesture.location(in: self)
-        UIView.animate(withDuration: 0.1) {
-            self.contentView.center = CGPoint(x: locationInView.x - self.dragStartPositionRelativeToCenter!.x,
-                                              y: locationInView.y - self.dragStartPositionRelativeToCenter!.y)
-        }
-    }
-    
-    @objc func handlePinch(gesture: UIPinchGestureRecognizer) {
-        contentView.transform = contentView.transform.scaledBy(x: gesture.scale, y: gesture.scale)
-        gesture.scale = 1;
-        if gesture.state == .ended {
-            self.sendOnTouchEndEvent(numberOfTouches: 2)
-        }
-    }
-    
-    @objc func handleLongPress(gesture: UILongPressGestureRecognizer) {
-        if onViewLongPress == nil {
-            return
-        }
-        if gesture.state == .began {
-            onViewLongPress!(["touchEnd": false])
-        }
-        if gesture.state == .ended {
-            onViewLongPress!(["touchEnd": true])
-        }
-    }
-    
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return false
-    }
-}
+  }
 
+  func sendOnTouchStartEvent(numberOfTouches: Int) {
+    if self.onViewTouchStart != nil {
+      let event = ["numberOfTouches": numberOfTouches]
+      self.onViewTouchStart!(event);
+    }
+  }
+  
+  func sendOnTouchEndEvent(numberOfTouches: Int) {
+    if self.onViewTouchEnd != nil {
+      let event = ["numberOfTouches": numberOfTouches]
+      self.onViewTouchEnd!(event)
+    }
+  }
+
+  func updateContent(animated: Bool = true) {
+    if contentView == nil {
+      return
+    }
+    var centerX = contentView.center.x
+    var centerY = contentView.center.y
+    let width = frame.size.width
+    let height = frame.size.height
+    let contentWidth = contentView.frame.size.width
+    let contentHeight = contentView.frame.size.height
+    
+    var applyMaxMinScale = false
+    var changeMaxMinScale = true
+    var scaleX = contentView.transform.a
+    var scaleY = contentView.transform.a
+    let scaleWidth = width / contentWidth
+    let scaleHeight = height / contentHeight
+    let maxScale = max(scaleWidth, scaleHeight)
+    
+    if contentView.frame.origin.x > 0 {
+      centerX = contentWidth / 2
+    } else if contentView.frame.origin.x < width - contentWidth {
+      centerX = width - contentWidth / 2
+    }
+    if contentView.frame.origin.y > 0 {
+      centerY = contentHeight / 2
+    } else if contentView.frame.origin.y < height - contentHeight {
+      centerY = height - contentHeight / 2
+    }
+    
+    if contentWidth < width {
+      scaleX = scaleWidth
+      centerX = width / 2
+      if requiresMinScale {
+        scaleX = maxScale
+        scaleY = maxScale
+        applyMaxMinScale = false
+        changeMaxMinScale = false
+      }
+    }
+    if contentHeight < height {
+      scaleY = scaleHeight
+      centerY = height / 2
+      if requiresMinScale {
+        scaleX = maxScale
+        scaleY = maxScale
+        applyMaxMinScale = false
+        changeMaxMinScale = false
+      }
+    }
+    
+    if changeMaxMinScale && maximumZoomScale != nil && contentView.transform.a > maximumZoomScale! {
+      scaleX = maximumZoomScale!
+      scaleY = maximumZoomScale!
+      applyMaxMinScale = true
+    }
+    if changeMaxMinScale && minimumZoomScale != nil && contentView.transform.a < minimumZoomScale!  {
+      applyMaxMinScale = true
+      scaleX = minimumZoomScale!
+      scaleY = minimumZoomScale!
+    }
+    
+    if scaleX != contentView.transform.a && scaleY != contentView.transform.a {
+      if applyMaxMinScale {
+        contentView.transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
+      } else {
+        let scale = min(scaleX, scaleY)
+        contentView.transform = contentView.transform.scaledBy(x: scale, y: scale)
+      }
+    }
+    if centerX != contentView.center.x || centerY != contentView.center.y {
+      if animated {
+        UIView.animate(withDuration: 0.1) {
+          self.contentView.center = CGPoint(x: centerX, y: centerY)
+        }
+      } else {
+        self.contentView.center = CGPoint(x: centerX, y: centerY)
+      }
+    }
+  }
+  
+  @objc func handlePan(gesture: UIPanGestureRecognizer) {
+    if gesture.state == UIGestureRecognizerState.began {
+      let locationInView = gesture.location(in: self)
+      dragStartPositionRelativeToCenter = CGPoint(x: locationInView.x - contentView.center.x, y: locationInView.y - contentView.center.y)
+      self.sendOnTouchStartEvent(numberOfTouches: 1)
+      return
+    }
+    
+    if gesture.state == UIGestureRecognizerState.ended {
+      updateContent()
+      dragStartPositionRelativeToCenter = nil
+      self.sendOnTouchEndEvent(numberOfTouches: 1)
+      return
+    }
+    
+    let locationInView = gesture.location(in: self)
+    UIView.animate(withDuration: 0.1) {
+      self.contentView.center = CGPoint(x: locationInView.x - self.dragStartPositionRelativeToCenter!.x,
+                                        y: locationInView.y - self.dragStartPositionRelativeToCenter!.y)
+    }
+  }
+  
+  @objc func handlePinch(gesture: UIPinchGestureRecognizer) {
+    contentView.transform = contentView.transform.scaledBy(x: gesture.scale, y: gesture.scale)
+    gesture.scale = 1;
+    if gesture.state == .ended {
+      updateContent()
+      self.sendOnTouchEndEvent(numberOfTouches: 2)
+    } else {
+      self.sendOnTouchStartEvent(numberOfTouches: 2)
+    }
+  }
+  
+  @objc func handleLongPress(gesture: UILongPressGestureRecognizer) {
+    if onViewLongPress == nil {
+      return
+    }
+    if gesture.state == .began {
+      onViewLongPress!(["touchEnd": false])
+    }
+    if gesture.state == .ended {
+      onViewLongPress!(["touchEnd": true])
+    }
+  }
+  
+  @objc func handleTap(gesture: UITapGestureRecognizer) {
+    sendOnTapEvent()
+  }
+  
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    return false
+  }
+}

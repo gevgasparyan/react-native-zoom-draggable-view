@@ -1,5 +1,9 @@
 //
 //  RNZoomDraggableViewManager.swift
+//  RNZoomDraggableView
+//
+//  Created by Gevorg Gasparyan on 10/17/17.
+//  Copyright © 2017 Gevorg Gasparyan. All rights reserved.
 //
 
 import UIKit

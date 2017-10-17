@@ -34,14 +34,6 @@
       compile project(':react-native-zoom-draggable-view')
   	```
 
-#### Windows
-[Read it! :D](https://github.com/ReactWindows/react-native)
-
-1. In Visual Studio add the `RNZoomDraggableView.sln` in `node_modules/react-native-zoom-draggable-view/windows/RNZoomDraggableView.sln` folder to their solution, reference from their app.
-2. Open up your `MainPage.cs` app
-  - Add `using Zoom.Draggable.View.RNZoomDraggableView;` to the usings at the top of the file
-  - Add `new RNZoomDraggableViewPackage()` to the `List<IReactPackage>` returned by the `Packages` method
-
 
 ## Usage
 ```javascript
