@@ -1,7 +1,7 @@
 
 {
   "name": "react-native-zoom-draggable-view",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "native View for zooming and panning it's content view",
   "main": "index.js",
   "scripts": {
