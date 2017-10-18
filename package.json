@@ -2,19 +2,23 @@
 {
   "name": "react-native-zoom-draggable-view",
   "version": "1.0.0",
-  "description": "",
+  "description": "native View for zooming and panning it's content view",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "react-native"
+    "react-native",
+    "react",
+    "zoom",
+    "scale",
+    "pan",
+    "ios",
+    "mobile"
   ],
-  "author": "",
-  "license": "",
+  "author": "Gevorg Gasparyan",
+  "license": "MIT",
   "peerDependencies": {
-    "react-native": "^0.41.2",
-    "react-native-windows": "0.41.0-rc.1"
-
+    "react-native": ">=0.29"
   }
 }
