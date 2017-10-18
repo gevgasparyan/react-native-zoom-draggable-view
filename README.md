@@ -3,6 +3,8 @@
 
 ## iOS only. (android returns `View` component)
 
+<img src="https://github.com/gevorg94/react-native-zoom-draggable-view/blob/master/readme_assets/demo.gif?raw=true" width="240">
+
 ## Getting started
 
 `$ npm install react-native-zoom-draggable-view --save`
