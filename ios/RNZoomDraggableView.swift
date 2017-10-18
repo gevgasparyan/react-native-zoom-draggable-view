@@ -31,7 +31,12 @@ class RNZoomDraggableView: RCTView, UIGestureRecognizerDelegate {
   var longPressRecognizer: UILongPressGestureRecognizer!
   
   var longPressEnabled: Bool = true
-  
+  deinit {
+    if contentView != nil {
+      self.contentView.removeObserver(self, forKeyPath: "bounds")
+      self.contentView.removeObserver(self, forKeyPath: "bounds")
+    }
+  }
   override init(frame: CGRect) {
     super.init(frame: frame)
     self.clipsToBounds = true
@@ -102,9 +107,26 @@ class RNZoomDraggableView: RCTView, UIGestureRecognizerDelegate {
   override func insertReactSubview(_ subview: UIView!, at atIndex: Int) {
     super.insertSubview(subview, at: atIndex)
     self.contentView = subview
+    self.contentView.addObserver(self, forKeyPath: "bounds", options: NSKeyValueObservingOptions.new, context: nil)
+    self.contentView.addObserver(self, forKeyPath: "bounds", options: NSKeyValueObservingOptions.old, context: nil)
     initialSetup()
   }
-  
+  override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+    if keyPath != "bounds" || change == nil {
+      return
+    }
+    var oldBounds = CGRect.zero
+    var newBounds = CGRect.zero
+    if let new = change![NSKeyValueChangeKey.newKey] as? CGRect {
+      newBounds = new
+    }
+    if let old = change![NSKeyValueChangeKey.oldKey] as? CGRect {
+      oldBounds = old
+    }
+    if !oldBounds.equalTo(newBounds) {
+      self.updateContent()
+    }
+  }
   override func layoutSubviews() {
     super.layoutSubviews()
     if needToUpdateContent {
