@@ -37,7 +37,7 @@
 
 ## Usage
 ```javascript
-import RNZoomDraggableView from 'react-native-zoom-draggable-view';
+import { RNZoomDraggableView } from 'react-native-zoom-draggable-view';
 
 // TODO: What to do with the module?
 RNZoomDraggableView;
